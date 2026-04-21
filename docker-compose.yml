@@ -1,0 +1,63 @@
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: admin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "admin"]
+      interval: 5s
+      retries: 5
+    ports:
+      - "5435:5432"
+
+  # ── MLflow ───────────────────────────────────────────────────────────────────
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    container_name: mlflow
+    user: root
+    environment:
+      - MLFLOW_FLASK_SERVER_SECRET_KEY=capstone2025
+      - GUNICORN_CMD_ARGS=--timeout 120 --forwarded-allow-ips="*"
+      - MLFLOW_SERVER_ALLOWED_HOSTS=*
+    command: >
+      mlflow server
+      --backend-store-uri postgresql://admin:admin@postgres:5432/mlflow
+      --default-artifact-root mlflow-artifacts:/
+      --artifacts-destination /mlruns
+      --serve-artifacts
+      --host 0.0.0.0
+      --port 5000
+      --cors-allowed-origins "*"
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./mlruns:/mlruns
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ── FastAPI ──────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: article-tagger-api
+    ports:
+      - "8000:8000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MODEL_URI=models:/DistilBERT_Tagger/latest
+    depends_on:
+      - mlflow
+
+volumes:
+  postgres_data:

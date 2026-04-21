@@ -1,0 +1,21 @@
+# Data
+medium_articles.csv
+
+# Model artifacts
+distilbert_tagging_model/
+results/
+
+# MLflow
+mlflow.db
+mlruns/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pkl
+
+# Env
+.env
+
+# macOS
+.DS_Store

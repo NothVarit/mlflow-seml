@@ -1,0 +1,9 @@
+medium_articles.csv
+mlruns/
+results/
+__pycache__/
+*.ipynb
+*.pkl
+mlflow.db
+train.py
+train_model.ipynb
