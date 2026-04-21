@@ -1,6 +1,3 @@
-# Data
-medium_articles.csv
-
 # Model artifacts
 distilbert_tagging_model/
 results/

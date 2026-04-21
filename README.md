@@ -1,6 +1,6 @@
-# Article Tagger — DistilBERT Multi-Label Classification
+# Article Tagger - DistilBERT Multi-Label Classification
 
-A FastAPI service that predicts topic tags for Medium articles using a fine-tuned DistilBERT model. Training experiments are tracked with MLflow backed by PostgreSQL.
+A FastAPI service that predicts topic tags for Medium articles using a fine-tuned DistilBERT model. Training experiments are tracked with MLflow backed by PostgreSQL, and `data/medium_articles.csv` is versioned with DVC.
 
 ## Supported Tags
 
@@ -17,13 +17,45 @@ A FastAPI service that predicts topic tags for Medium articles using a fine-tune
 
 ## Workflow
 
-```
-1. Start Docker Compose  →  2. Train model  →  3. Call the API
+```text
+1. Pull dataset with DVC -> 2. Start Docker Compose -> 3. Train model -> 4. Call the API
 ```
 
 ---
 
-## 1. Start Services
+## 1. Get the Dataset with DVC
+
+The dataset pointer is tracked in Git as `data/medium_articles.csv.dvc` while the raw `data/medium_articles.csv` stays out of source control.
+
+Install DVC:
+
+```bash
+pip install dvc
+```
+
+If the CSV is already available in your local DVC cache or configured remote, restore it with:
+
+```bash
+dvc pull data/medium_articles.csv.dvc
+```
+
+If you download a fresh copy from Kaggle, track it with:
+
+```bash
+dvc add data/medium_articles.csv
+git add data/medium_articles.csv.dvc data/.gitignore
+```
+
+If you want other clones to be able to retrieve the dataset, configure a remote and push:
+
+```bash
+dvc remote add -d storage <remote-path>
+dvc push
+```
+
+---
+
+## 2. Start Services
 
 ```bash
 docker compose up --build
@@ -39,21 +71,24 @@ This starts three containers:
 
 ---
 
-## 2. Train the Model
+## 3. Train the Model
 
-Download the [Medium Articles dataset](https://www.kaggle.com/datasets/fabiochiusano/medium-articles) from Kaggle and place `medium_articles.csv` in the project folder.
+If you do not already have the dataset in DVC storage, download the [Medium Articles dataset](https://www.kaggle.com/datasets/fabiochiusano/medium-articles) from Kaggle, place it at `data/medium_articles.csv`, and run `dvc add data/medium_articles.csv`.
 
 Install dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
 
-Run training (make sure Docker Compose is running first):
+Run training after the dataset is present locally and Docker Compose is running:
+
 ```bash
-python train.py --data medium_articles.csv
+python train.py --data data/medium_articles.csv
 ```
 
 Training will:
+
 1. Preprocess and split the dataset (80/20 train/test)
 2. Fine-tune `distilbert-base-uncased` for multi-label classification
 3. Log params and metrics (micro F1, macro F1, Precision@5) to MLflow
@@ -63,21 +98,22 @@ Training will:
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--data` | required | Path to `medium_articles.csv` |
+| `--data` | required | Path to `data/medium_articles.csv` |
 | `--epochs` | `2` | Number of training epochs |
 | `--batch-size` | `16` | Per-device batch size |
 | `--lr` | `5e-5` | Learning rate |
 | `--model-dir` | `./distilbert_tagging_model` | Where to save model weights |
 
-> **Tip:** Training on CPU takes ~3 hours. For faster results, train on [Kaggle](https://www.kaggle.com) or Google Colab (free GPU) and set `MLFLOW_TRACKING_URI=http://localhost:5001` before running.
+> **Tip:** Training on CPU takes about 3 hours. For faster results, train on [Kaggle](https://www.kaggle.com) or Google Colab and set `MLFLOW_TRACKING_URI=http://localhost:5001` before running.
 
 ---
 
-## 3. Call the API
+## 4. Call the API
 
 ### `POST /predict`
 
 **Single input:**
+
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
@@ -85,6 +121,7 @@ curl -X POST http://localhost:8000/predict \
 ```
 
 **Batch input:**
+
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
@@ -92,6 +129,7 @@ curl -X POST http://localhost:8000/predict \
 ```
 
 **Response:**
+
 ```json
 {
   "predictions": [

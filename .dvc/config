@@ -1,0 +1,5 @@
+[core]
+    no_scm = false
+    remote = storage
+['remote "storage"']
+    url = d:\seml\dvc-remote
