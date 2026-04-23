@@ -142,7 +142,7 @@ services:
       dockerfile: Dockerfile
     container_name: article-tagger-api
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8001}:8000"
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - MODEL_URI=models:/DistilBERT_Tagger@production
