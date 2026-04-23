@@ -1,6 +1,10 @@
 FROM python:3.11-slim
 
-RUN pip install --no-cache-dir mlflow psycopg2-binary gunicorn
+ENV UV_SYSTEM_PYTHON=1 \
+    UV_COMPILE_BYTECODE=1
+
+RUN pip install --no-cache-dir uv && \
+    uv pip install mlflow psycopg2-binary gunicorn
 
 RUN mkdir -p /mlruns && chown -R 1000:1000 /mlruns
 
