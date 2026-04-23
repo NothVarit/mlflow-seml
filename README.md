@@ -132,6 +132,11 @@ It executes:
 3. `evaluate_candidate`
 4. `compare_and_promote`
 
+Schedule:
+
+- runs automatically every day at `00:00` Airflow scheduler time
+- `catchup=False`, so it only runs forward and does not backfill old dates
+
 Drift detection is code-based and now checks:
 
 - `Label Distribution Drift`: shift in the Top-50 predicted tags frequency exceeds `15` percentage points versus the baseline prediction distribution.

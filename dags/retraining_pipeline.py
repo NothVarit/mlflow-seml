@@ -28,7 +28,7 @@ def _dag_conf(defaults):
 
 @dag(
     dag_id="article_tagger_retraining",
-    schedule=None,
+    schedule="0 0 * * *",
     start_date=datetime(2024, 1, 1),
     catchup=False,
     tags=["mlops", "drift", "retraining"],
