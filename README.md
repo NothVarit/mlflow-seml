@@ -1,4 +1,4 @@
-# Article Tagger Demo
+# Article Tagger
 
 This repository contains two connected layers:
 
