@@ -48,6 +48,7 @@ services:
       dockerfile: Dockerfile.airflow
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/dags
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:admin@postgres:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
@@ -65,6 +66,8 @@ services:
       CURRENT_FEEDBACK_PATH: /opt/airflow/project/data/current_feedback.csv
       MODEL_DIR: /opt/airflow/project/distilbert_tagging_model
       DRIFT_REPORT_DIR: /opt/airflow/project/reports
+      MODEL_RELOAD_URL: http://api:8000/admin/reload-model
+      MODEL_RELOAD_TOKEN: airflow-model-reload-token
     command: >
       bash -c "airflow db migrate &&
       (airflow users create --username airflow --password airflow --firstname Air --lastname Flow --role Admin --email airflow@example.com || true)"
@@ -82,6 +85,7 @@ services:
       dockerfile: Dockerfile.airflow
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/dags
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:admin@postgres:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
@@ -99,6 +103,8 @@ services:
       CURRENT_FEEDBACK_PATH: /opt/airflow/project/data/current_feedback.csv
       MODEL_DIR: /opt/airflow/project/distilbert_tagging_model
       DRIFT_REPORT_DIR: /opt/airflow/project/reports
+      MODEL_RELOAD_URL: http://api:8000/admin/reload-model
+      MODEL_RELOAD_TOKEN: airflow-model-reload-token
     command: webserver
     volumes:
       - ./:/opt/airflow/project
@@ -114,6 +120,7 @@ services:
       dockerfile: Dockerfile.airflow
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/project/dags
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:admin@postgres:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
@@ -129,6 +136,8 @@ services:
       CURRENT_FEEDBACK_PATH: /opt/airflow/project/data/current_feedback.csv
       MODEL_DIR: /opt/airflow/project/distilbert_tagging_model
       DRIFT_REPORT_DIR: /opt/airflow/project/reports
+      MODEL_RELOAD_URL: http://api:8000/admin/reload-model
+      MODEL_RELOAD_TOKEN: airflow-model-reload-token
     command: scheduler
     volumes:
       - ./:/opt/airflow/project
@@ -142,13 +151,42 @@ services:
       dockerfile: Dockerfile
     container_name: article-tagger-api
     ports:
-      - "${API_PORT:-8001}:8000"
+      - "8002:8000"
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - MODEL_URI=models:/DistilBERT_Tagger@production
       - MODEL_FALLBACK_URI=models:/DistilBERT_Tagger/latest
+      - LOCAL_MODEL_PATH=/app/distilbert_tagging_model
+      - MODEL_RELOAD_TOKEN=airflow-model-reload-token
+    volumes:
+      - ./distilbert_tagging_model:/app/distilbert_tagging_model:ro
     depends_on:
       - mlflow
+
+  # ── App Backend + Frontend ───────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: seml-demo-web
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://admin:admin@postgres:5432/seml_app
+      - APP_DATABASE_ADMIN_URL=postgresql://admin:admin@postgres:5432/postgres
+      - ML_SERVICE_URL=http://api:8000
+      - TOKENIZER_JSON_PATH=/app/distilbert_tagging_model/tokenizer.json
+      - OOV_HISTORY_PATH=/app/data/oov_history.csv
+      - OOV_SIGMA_THRESHOLD=2.0
+      - AIRFLOW_BASE_URL=http://airflow-webserver:8080
+      - AIRFLOW_USERNAME=airflow
+      - AIRFLOW_PASSWORD=airflow
+    volumes:
+      - ./distilbert_tagging_model:/app/distilbert_tagging_model:ro
+      - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:

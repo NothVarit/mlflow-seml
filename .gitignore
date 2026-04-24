@@ -14,5 +14,11 @@ __pycache__/
 # Env
 .env
 
+# Frontend / backend build artifacts
+frontend/node_modules/
+frontend/dist/
+backend/.venv/
+backend/.pytest_cache/
+
 # macOS
 .DS_Store

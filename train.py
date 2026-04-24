@@ -1,5 +1,4 @@
 import argparse
-
 from mlops_pipeline.pipeline import train_and_register_model
 
 

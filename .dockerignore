@@ -7,3 +7,7 @@ __pycache__/
 mlflow.db
 train.py
 train_model.ipynb
+frontend/node_modules/
+frontend/dist/
+backend/.venv/
+backend/.pytest_cache/

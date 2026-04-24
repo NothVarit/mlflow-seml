@@ -27,6 +27,15 @@ from .constants import ID2LABEL, LABEL2ID, MODEL_NAME, SELECTED_LABELS, TARGET_T
 from .data import load_and_preprocess
 
 
+def _resolve_device():
+    if torch.cuda.is_available():
+        return "cuda"
+    mps_backend = getattr(torch.backends, "mps", None)
+    if mps_backend and mps_backend.is_available():
+        return "mps"
+    return "cpu"
+
+
 def precision_at_k(y_true, y_score, k=5):
     top_k_idx = np.argsort(y_score, axis=1)[:, -k:]
     relevant = sum(np.sum(y_true[i, top_k_idx[i]]) for i in range(y_true.shape[0]))
@@ -131,7 +140,7 @@ def train_and_register_model(
     x_train, x_test, y_train, y_test = train_test_split(x_values, y_values, test_size=0.2, random_state=42)
     print(f"Train: {len(x_train)}, Test: {len(x_test)}")
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = _resolve_device()
     print(f"Using device: {device}")
 
     tokenizer = DistilBertTokenizerFast.from_pretrained("distilbert-base-uncased")
@@ -171,7 +180,7 @@ def train_and_register_model(
             per_device_eval_batch_size=batch_size,
             num_train_epochs=epochs,
             weight_decay=0.01,
-            fp16=torch.cuda.is_available(),
+            fp16=device == "cuda",
             load_best_model_at_end=True,
             metric_for_best_model="micro_f1",
             report_to="mlflow",
@@ -212,7 +221,7 @@ def train_and_register_model(
         )
 
         gc.collect()
-        if torch.cuda.is_available():
+        if device == "cuda":
             torch.cuda.empty_cache()
 
         saved_model = DistilBertForSequenceClassification.from_pretrained(model_dir).to(device)

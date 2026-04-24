@@ -1,5 +1,7 @@
 from datetime import datetime
+import json
 import os
+from urllib import error, request
 
 from airflow.decorators import dag, task
 from airflow.operators.python import get_current_context
@@ -17,6 +19,8 @@ DEFAULT_CURRENT_PREDICTIONS = os.getenv("CURRENT_PREDICTIONS_PATH")
 DEFAULT_OOV_HISTORY = os.getenv("OOV_HISTORY_PATH")
 DEFAULT_CTR_HISTORY = os.getenv("CTR_HISTORY_PATH")
 DEFAULT_CURRENT_FEEDBACK = os.getenv("CURRENT_FEEDBACK_PATH")
+DEFAULT_MODEL_RELOAD_URL = os.getenv("MODEL_RELOAD_URL", "http://api:8000/admin/reload-model")
+DEFAULT_MODEL_RELOAD_TOKEN = os.getenv("MODEL_RELOAD_TOKEN")
 
 
 def _dag_conf(defaults):
@@ -79,7 +83,7 @@ def article_tagger_retraining():
     def retrain_model(
         current_data_path=DEFAULT_CURRENT_DATA,
         epochs=2,
-        batch_size=16,
+        batch_size=4,
         lr=5e-5,
         model_dir=DEFAULT_MODEL_DIR,
     ):
@@ -118,13 +122,52 @@ def article_tagger_retraining():
             metric_name=config["metric_name"],
         )
 
+    @task
+    def reload_serving_model(
+        promotion_summary,
+        model_reload_url=DEFAULT_MODEL_RELOAD_URL,
+        model_reload_token=DEFAULT_MODEL_RELOAD_TOKEN,
+    ):
+        if not promotion_summary["promoted"]:
+            return {"reloaded": False, "reason": "candidate_not_promoted"}
+        config = _dag_conf(
+            {
+                "model_reload_url": model_reload_url,
+                "model_reload_token": model_reload_token,
+            }
+        )
+        headers = {}
+        if config["model_reload_token"]:
+            headers["X-Model-Reload-Token"] = config["model_reload_token"]
+        headers["Content-Type"] = "application/json"
+        payload = json.dumps({"expected_model_version": promotion_summary["candidate_version"]}).encode("utf-8")
+        req = request.Request(config["model_reload_url"], data=payload, method="POST", headers=headers)
+        try:
+            with request.urlopen(req, timeout=30) as response:
+                body = response.read().decode("utf-8")
+        except error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(
+                f"Model reload request failed url={config['model_reload_url']} status={exc.code} body={body}"
+            ) from exc
+        except error.URLError as exc:
+            raise RuntimeError(
+                f"Model reload request failed url={config['model_reload_url']} reason={exc.reason}"
+            ) from exc
+        return {
+            "reloaded": True,
+            "status_code": response.status,
+            "response": body,
+        }
+
     gate = drift_gate()
     training = retrain_model()
     evaluation = evaluate_candidate(training)
     promotion = compare_and_promote(evaluation)
+    reload_model = reload_serving_model(promotion)
 
     gate >> training
-    training >> evaluation >> promotion
+    training >> evaluation >> promotion >> reload_model
 
 
 article_tagger_retraining()

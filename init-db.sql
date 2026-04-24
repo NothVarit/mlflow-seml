@@ -1,2 +1,3 @@
 CREATE DATABASE mlflow;
 CREATE DATABASE airflow;
+CREATE DATABASE seml_app;
